@@ -37,11 +37,11 @@ struct Table
 	std::uint32_t dataOffset;
 	std::shared_ptr<TableBlock> dataBlock;
 
-	bool check(const Table& other)
+	void check(const Table& other)
 	{
 		if (length == other.length &&
 			checkSum == other.checkSum &&
-			memcmp(dataBlock->data, other.dataBlock->data, length))
+			memcmp(dataBlock->data, other.dataBlock->data, length) == 0)
 			dataBlock = other.dataBlock;
 	}
 
@@ -99,7 +99,7 @@ inline std::istream& operator>>(std::istream& stream, Table& record)
 	return stream;
 }
 
-inline std::ostream& operator>>(std::ostream& stream, const Table& record)
+inline std::ostream& operator<<(std::ostream& stream, const Table& record)
 {
 	WriteBE32(stream, record.tag);
 	WriteBE32(stream, record.checkSum);
@@ -108,7 +108,7 @@ inline std::ostream& operator>>(std::ostream& stream, const Table& record)
 	return stream;
 }
 
-inline std::ostream& operator>>(std::ostream& stream, const TTCHeader& header)
+inline std::ostream& operator<<(std::ostream& stream, const TTCHeader& header)
 {
 	WriteBE32(stream, header.tag);
 	WriteBE16(stream, header.majorVersion);

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include <memory>
+#include <cstdint>
 using namespace std;
 
 int main(int argc, char **argv)
@@ -14,7 +15,11 @@ int main(int argc, char **argv)
 	}
 
 	TTCHeader ttc;
-	ttc.fonts.resize(argc - 2);
+	ttc.tag = 0x74746366; //ttcf
+	ttc.majorVersion = 1;
+	ttc.minorVersion = 0;
+	ttc.numFonts = argc - 2;
+	ttc.fonts.resize(ttc.numFonts);
 
 	int index = 2;
 	for (auto& ttf : ttc.fonts)
@@ -42,6 +47,66 @@ int main(int argc, char **argv)
 			cerr << "Error reading file: " << filename << endl;
 			return -1;
 		}
+	}
+
+	for (auto& ttf : ttc.fonts)
+		for (auto& table : ttf.tables)
+			for (const auto& otherFont : ttc.fonts)
+			{
+				if (&ttf == &otherFont)break;
+				for (const auto& otherTable : otherFont.tables)
+					table.check(otherTable);
+			}
+
+	uint32_t current = 0;
+	current += 4 + 2 + 2 + 4; //ttc header
+	current += 4 * ttc.numFonts; //fonts offset table
+	for (auto& ttf : ttc.fonts)
+	{
+		ttf.offset = current;
+		current += 4 + 2 + 2 + 2 + 2; //otf header
+		current += (4 + 4 + 4 + 4)*ttf.numTables;
+	}
+
+	for (auto& ttf : ttc.fonts)
+	{
+		for (auto& table : ttf.tables)
+			if (table.dataBlock->offset == 0)
+			{
+				table.dataBlock->offset = current;
+				current += table.length;
+			}
+			else table.dataOffset = table.dataBlock->offset;
+	}
+
+	ofstream output(argv[1], ofstream::binary);
+	if (!output.is_open())
+	{
+		cerr << "Cannot open output: " << argv[1] << endl;
+		return -1;
+	}
+
+	output << ttc;
+	for (const auto& font : ttc.fonts)
+	{
+		output << font;
+		for (const auto& table : font.tables)
+			output << table;
+	}
+
+	uint32_t position = 0;
+	for (const auto& font : ttc.fonts)
+		for (const auto& table : font.tables)
+		{
+			if (position >= table.dataBlock->offset)continue;
+			position = table.dataBlock->offset;
+			output.write(table.dataBlock->data, table.length);
+		}
+
+	if (output.fail())
+	{
+		cerr << "Error writing file: " << argv[1] << endl;
+		return -1;
 	}
 
 	return 0;
